@@ -1,0 +1,15 @@
+<modification>
+    <id>Notice SMS Notification Extension</id>
+    <version>1.0.0</version>
+    <vqmver>2.3.0</vqmver>
+    <author>Tudor Rusu</author>
+
+    <file path="catalog/controller/checkout/success.php">
+        <operation>
+            <search position="after"><![CDATA[$this->cart->clear();]]></search>
+            <add position="before"><![CDATA[
+                $this->load->controller('module/sms_notification/afterOrderPlaced', $this->session->data['order_id']);
+            ]]></add>
+        </operation>
+    </file>
+</modification>
