@@ -73,8 +73,7 @@ class NoticeConfirm {
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_HTTPAUTH       => CURLAUTH_BEARER,
-            CURLOPT_XOAUTH2_BEARER => $bearer,
+            CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $bearer],
         ]);
         $result = curl_exec($ch);
         curl_close($ch);
@@ -146,8 +145,7 @@ class NoticeConfirm {
             CURLOPT_POSTFIELDS     => http_build_query($params),
         ]);
         if ($bearer) {
-            curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_BEARER);
-            curl_setopt($ch, CURLOPT_XOAUTH2_BEARER, $bearer);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $bearer]);
         }
         $result = curl_exec($ch);
         $errno  = curl_errno($ch);
