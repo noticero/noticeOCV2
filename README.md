@@ -25,7 +25,7 @@ Plugin OpenCart 2.x / 3.x care automatizează confirmarea comenzilor printr-un f
 | OpenCart | 2.3+ sau 3.x |
 | PHP | 7.1+ |
 | Extensie PHP | `curl`, `json` |
-| Cont notice.ro | [api.notice.ro](https://api.notice.ro) |
+| Cont notice.ro | [app.notice.ro](https://app.notice.ro) |
 
 ---
 
@@ -59,7 +59,7 @@ Deschide **Extensions → Modules → NoticeConfirm → Edit**.
 | Câmp | Descriere |
 |---|---|
 | **Status** | Activează sau dezactivează modulul. |
-| **Bearer Token** | Token-ul de autentificare din contul tău [api.notice.ro](https://api.notice.ro). Îl găsești în secțiunea *API Keys* din panoul notice.ro. |
+| **Bearer Token** | Token-ul de autentificare din contul tău [app.notice.ro](https://app.notice.ro). Îl găsești în secțiunea *API Keys* din panoul notice.ro. |
 | **Callback URL** | Completat automat. Copiază această adresă și introdu-o în setările contului notice.ro ca URL de callback pentru apeluri vocale. |
 
 ### Timing
