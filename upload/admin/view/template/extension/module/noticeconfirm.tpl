@@ -197,7 +197,107 @@
         </div>
       </div>
 
+      <!-- Message Templates -->
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title"><i class="fa fa-envelope-o"></i> Message Templates
+            <small class="pull-right" style="font-weight:normal;margin-top:2px">
+              <a href="#" id="btn-load-templates"><i class="fa fa-refresh"></i> Load from notice.ro</a>
+            </small>
+          </h3>
+        </div>
+        <div class="panel-body">
+
+          <div class="alert alert-info" style="margin-bottom:15px">
+            <strong>Available variables:</strong>
+            <code>{order_id}</code> <code>{total}</code> <code>{firstname}</code> <code>{lastname}</code>
+            <code>{telephone}</code> <code>{email}</code> <code>{date_added}</code> <code>{token}</code>
+            <span class="text-muted">&nbsp;— <code>{token}</code> is the confirmation link token (SMS only)</span>
+          </div>
+
+          <div id="template-selector" style="display:none;margin-bottom:15px">
+            <div class="form-group">
+              <label class="col-sm-2 control-label">Load a template</label>
+              <div class="col-sm-6">
+                <select id="nc-template-pick" class="form-control">
+                  <option value="">— select a notice.ro template —</option>
+                </select>
+              </div>
+              <div class="col-sm-4">
+                <div class="btn-group">
+                  <button type="button" class="btn btn-default nc-apply-tpl" data-target="noticeconfirm_tpl_call">Apply to Call</button>
+                  <button type="button" class="btn btn-default nc-apply-tpl" data-target="noticeconfirm_tpl_wapp">Apply to WhatsApp</button>
+                  <button type="button" class="btn btn-default nc-apply-tpl" data-target="noticeconfirm_tpl_sms">Apply to SMS</button>
+                  <button type="button" class="btn btn-default nc-apply-tpl" data-target="noticeconfirm_tpl_recall">Apply to Recall</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <?php $tpl_steps = [
+            ['key' => 'tpl_call',   'label' => 'Voice Call',  'icon' => 'fa-phone',        'hint' => 'Read aloud by the IVR system. Key 1 = confirm, Key 9 = cancel.'],
+            ['key' => 'tpl_wapp',   'label' => 'WhatsApp',    'icon' => 'fa-whatsapp',     'hint' => 'Sent if call unanswered after delay.'],
+            ['key' => 'tpl_sms',    'label' => 'SMS',         'icon' => 'fa-comment',      'hint' => 'Use {token} to include the confirmation link.'],
+            ['key' => 'tpl_recall', 'label' => 'Recall',      'icon' => 'fa-phone-square', 'hint' => 'Second voice call if SMS not acted upon.'],
+          ]; ?>
+          <?php foreach ($tpl_steps as $step) { $var = 'noticeconfirm_' . $step['key']; ?>
+          <div class="form-group">
+            <label class="col-sm-2 control-label"><i class="fa <?php echo $step['icon']; ?>"></i> <?php echo $step['label']; ?></label>
+            <div class="col-sm-10">
+              <textarea name="<?php echo $var; ?>" id="<?php echo $var; ?>"
+                class="form-control nc-tpl-area" rows="3"
+                placeholder="Leave empty to use built-in default"><?php echo htmlspecialchars($$var); ?></textarea>
+              <span class="help-block"><?php echo $step['hint']; ?></span>
+            </div>
+          </div>
+          <?php } ?>
+
+        </div>
+      </div>
+
     </form>
   </div>
 </div>
+
+<script>
+(function() {
+  var templates = [];
+
+  document.getElementById('btn-load-templates').addEventListener('click', function(e) {
+    e.preventDefault();
+    this.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Loading...';
+    var self = this;
+
+    fetch('<?php echo $action_templates; ?>', { credentials: 'same-origin' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        templates = data;
+        var sel = document.getElementById('nc-template-pick');
+        sel.innerHTML = '<option value="">— select a notice.ro template —</option>';
+        data.forEach(function(t) {
+          var opt = document.createElement('option');
+          opt.value = t.id;
+          opt.textContent = t.name;
+          sel.appendChild(opt);
+        });
+        document.getElementById('template-selector').style.display = 'block';
+        self.innerHTML = '<i class="fa fa-check"></i> ' + data.length + ' templates loaded';
+      })
+      .catch(function() {
+        self.innerHTML = '<i class="fa fa-times text-danger"></i> Failed to load';
+      });
+  });
+
+  document.querySelectorAll('.nc-apply-tpl').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var sel   = document.getElementById('nc-template-pick');
+      var id    = parseInt(sel.value);
+      var tpl   = templates.find(function(t) { return t.id === id; });
+      if (!tpl) return;
+      var target = document.getElementById(this.dataset.target);
+      if (target) target.value = tpl.text;
+    });
+  });
+})();
+</script>
 <?php echo $footer; ?>

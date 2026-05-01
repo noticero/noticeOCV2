@@ -65,6 +65,31 @@ class NoticeConfirm {
         ]);
     }
 
+    public function getTemplates(): array {
+        $bearer = $this->get('bearer', '');
+        if (!$bearer) return [];
+
+        $ch = curl_init('https://api.notice.ro/api/v1/templates');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_HTTPAUTH       => CURLAUTH_BEARER,
+            CURLOPT_XOAUTH2_BEARER => $bearer,
+        ]);
+        $result = curl_exec($ch);
+        curl_close($ch);
+
+        $data = json_decode($result, true);
+        return is_array($data) ? $data : [];
+    }
+
+    public function renderTemplate(string $tpl, array $vars): string {
+        foreach ($vars as $key => $val) {
+            $tpl = str_replace('{' . $key . '}', $val, $tpl);
+        }
+        return $tpl;
+    }
+
     // ─── Order helpers ────────────────────────────────────────────────────────
 
     public function addOrderHistory(int $order_id, int $status_id, string $comment, bool $confirmed = false): void {
@@ -141,7 +166,7 @@ class NoticeConfirm {
         }
         $config = $this->registry->get('config');
         $store_url = $config ? rtrim($config->get('config_url'), '/') : '';
-        return $store_url . '/index.php?route=api/audio/callback';
+        return $store_url . '/index.php?route=extension/module/noticeconfirm_callback/callback';
     }
 
     private function formatPhoneIntl(string $phone): string {

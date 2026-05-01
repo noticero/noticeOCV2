@@ -1,11 +1,12 @@
 <?php
-// result values stored in ockg_audio.result:
+// result values in ockg_audio.result:
 //   1  = confirmed (key 1)
 //   9  = cancelled (key 9)
 //   0  = no_answer / no_response / failed / unknown
-//  -1  = recall in progress (set by cron, overwritten here)
+//  -1  = recall in progress (cron sentinel, overwritten here)
+// Route: extension/module/noticeconfirm_callback/callback
 
-class ControllerApiAudio extends Controller {
+class ControllerExtensionModuleNoticeconfirmCallback extends Controller {
 
     public function callback() {
         $this->load->library('noticeconfirm');

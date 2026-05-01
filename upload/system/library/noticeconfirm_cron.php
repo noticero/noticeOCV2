@@ -3,12 +3,10 @@
  * Notice.ro Order Confirmation Cron
  *
  * Run every 1-5 minutes via cron:
- *   php -f /path/to/opencart/cron/confirmsms.php
- *
- * Set OC_ROOT below to the absolute path of your OpenCart installation.
+ *   php -f /path/to/opencart/system/library/noticeconfirm_cron.php
  */
 
-define('OC_ROOT', dirname(__DIR__) . '/');  // adjust if cron/ is not inside OC root
+define('OC_ROOT', dirname(dirname(__DIR__)) . '/');  // system/library/ → OC root
 
 date_default_timezone_set('Europe/Bucharest');
 ini_set('max_execution_time', 0);
@@ -32,7 +30,6 @@ $db = new DB(DB_DRIVER, DB_HOSTNAME, DB_USERNAME, DB_PASSWORD, DB_DATABASE);
 $registry->set('db', $db);
 
 require_once(DIR_SYSTEM . 'library/noticeconfirm.php');
-require_once(DIR_SYSTEM . 'library/orderconfirmation.php');
 
 $nc = new NoticeConfirm($registry);
 
@@ -68,34 +65,43 @@ if (!$pending_sql) {
     exit(0);
 }
 
-// ─── Audio/confirm message templates ─────────────────────────────────────────
+// ─── Template defaults ────────────────────────────────────────────────────────
 
-function buildAudioText(string $total): string {
-    return 'Bună ziua! Vă contactăm pentru confirmarea comenzii plasate pe gave punct ro în valoare de '
-        . $total . ' lei. Termenul standard de livrare este de o zi până la două zile lucrătoare. '
-        . 'Pentru detalii suplimentare ne găsiți la numărul afișat pe site. '
-        . 'Apăsați tasta 1 pentru confirmare sau tasta 9 pentru anulare. Mulțumim!';
+$tpl_call   = $nc->get('tpl_call',   '');
+$tpl_wapp   = $nc->get('tpl_wapp',   '');
+$tpl_sms    = $nc->get('tpl_sms',    '');
+$tpl_recall = $nc->get('tpl_recall', '');
+
+function defaultCallText(string $total): string {
+    return 'Bună ziua! Vă contactăm pentru confirmarea comenzii în valoare de '
+        . $total . ' lei. Apăsați tasta 1 pentru confirmare sau tasta 9 pentru anulare. Mulțumim!';
 }
 
-function buildWappText(int $order_id, string $total): string {
+function defaultWappText(int $order_id, string $total): string {
     return 'Comanda ' . $order_id . ' în valoare de ' . $total
-        . ' lei a fost înregistrată cu succes pe GAVE. '
-        . 'Livrare se va face prin CURIER rapid în 1-2 zile lucrătoare de la plasare. '
-        . 'Confirmă comanda plasată cu textul DA';
+        . ' lei a fost înregistrată. Confirmă comanda plasată cu textul DA';
 }
 
-function buildSmsText(int $order_id, string $total, string $token): string {
-    return 'Ai facut alegerea perfecta! Comanda GAVE ' . $order_id
-        . ' a fost inregistrata cu succes. Total de plata ' . $total
-        . ' lei. Confirma apasand pe urmatorul link: gave.ro/c/' . $token;
+function defaultSmsText(int $order_id, string $total, string $token): string {
+    return 'Comanda ' . $order_id . ' inregistrata. Total ' . $total
+        . ' lei. Confirma: ' . $token;
+}
+
+function assignConfirmToken(\DB $db, int $order_id): string {
+    $row = $db->query("SELECT confirm_token FROM `" . DB_PREFIX . "order` WHERE order_id = '" . $order_id . "'")->row;
+    if (!empty($row['confirm_token'])) {
+        return $row['confirm_token'];
+    }
+    $token = bin2hex(random_bytes(16));
+    $db->query("UPDATE `" . DB_PREFIX . "order` SET confirm_token = '" . $db->escape($token) . "' WHERE order_id = '" . $order_id . "'");
+    return $token;
 }
 
 // ─── Main loop ────────────────────────────────────────────────────────────────
 
-$orderConfirmation = new OrderConfirmation($db);
-
 $orders = $db->query("
     SELECT o.order_id, o.telephone, o.date_added, o.total, o.confirmata,
+           o.firstname, o.lastname, o.email,
            a.id            AS audio_rec_id,
            a.called, a.sms, a.whatsapp, a.result,
            a.call_date, a.sms_date, a.whatsapp_date
@@ -131,12 +137,25 @@ foreach ($orders->rows as $order) {
     $phone    = $order['telephone'];
     $total    = str_replace('.', ',', round($order['total'], 2));
 
+    $vars = [
+        'order_id'   => $order_id,
+        'total'      => $total,
+        'firstname'  => $order['firstname'],
+        'lastname'   => $order['lastname'],
+        'telephone'  => $phone,
+        'email'      => $order['email'],
+        'date_added' => $order['date_added'],
+        'token'      => '',  // filled in step 3
+    ];
+
     // ── STEP 1: No audio record → voice call (within call window) ────────────
     if (empty($order['audio_rec_id'])) {
         if ($hour < $call_start || $hour >= $call_end) {
             continue;
         }
-        $audio_text = buildAudioText($total);
+        $audio_text = $tpl_call
+            ? $nc->renderTemplate($tpl_call, $vars)
+            : defaultCallText($total);
         $audio_id   = $nc->sendAudio($audio_text, $phone);
 
         $db->query("INSERT INTO `" . DB_PREFIX . "audio` SET
@@ -158,7 +177,9 @@ foreach ($orders->rows as $order) {
         && $order['call_date']
         && ($timestamp - strtotime($order['call_date'])) / 60 >= $delay_wapp
     ) {
-        $wapp_text = buildWappText($order_id, $total);
+        $wapp_text = $tpl_wapp
+            ? $nc->renderTemplate($tpl_wapp, $vars)
+            : defaultWappText($order_id, $total);
         $nc->sendWhatsapp($wapp_text, $phone);
         $db->query("UPDATE `" . DB_PREFIX . "audio` SET whatsapp = 1, whatsapp_date = NOW() WHERE id = '" . (int)$order['audio_rec_id'] . "'");
         $nc->log('whatsapp', 'Step2 wapp order=' . $order_id);
@@ -171,8 +192,11 @@ foreach ($orders->rows as $order) {
         && $order['whatsapp_date']
         && ($timestamp - strtotime($order['whatsapp_date'])) / 60 >= $delay_sms
     ) {
-        $token    = $orderConfirmation->assignTokenToOrder($order_id);
-        $sms_text = buildSmsText($order_id, $total, $token);
+        $token       = assignConfirmToken($db, $order_id);
+        $vars['token'] = $token;
+        $sms_text    = $tpl_sms
+            ? $nc->renderTemplate($tpl_sms, $vars)
+            : defaultSmsText($order_id, $total, $token);
         $nc->sendSms($sms_text, $phone);
         $db->query("UPDATE `" . DB_PREFIX . "audio` SET sms = 1, sms_date = NOW() WHERE id = '" . (int)$order['audio_rec_id'] . "'");
         $db->query("UPDATE `" . DB_PREFIX . "order` SET sms_sent = 1 WHERE order_id = '" . $order_id . "'");
@@ -188,7 +212,9 @@ foreach ($orders->rows as $order) {
         && ($timestamp - strtotime($order['sms_date'])) / 60 >= $delay_recall
         && $hour >= $call_start && $hour < $call_end
     ) {
-        $audio_text = buildAudioText($total);
+        $audio_text = $tpl_recall
+            ? $nc->renderTemplate($tpl_recall, $vars)
+            : defaultCallText($total);
         $audio_id   = $nc->sendAudio($audio_text, $phone);
         $db->query("UPDATE `" . DB_PREFIX . "audio` SET
             audio_id  = '" . $audio_id . "',

@@ -12,7 +12,11 @@ class ControllerExtensionModuleNoticeconfirm extends Controller {
         $this->document->setTitle($this->language->get('heading_title'));
 
         if ($this->request->server['REQUEST_METHOD'] === 'POST' && $this->validate()) {
-            $this->model_setting_setting->editSetting('noticeconfirm', $this->request->post);
+            $post = $this->request->post;
+            if (isset($post['noticeconfirm_status_pending']) && is_array($post['noticeconfirm_status_pending'])) {
+                $post['noticeconfirm_status_pending'] = implode(',', $post['noticeconfirm_status_pending']);
+            }
+            $this->model_setting_setting->editSetting('noticeconfirm', $post);
             $this->session->data['success'] = $this->language->get('text_success');
             $this->response->redirect($this->url->link(
                 'extension/module/noticeconfirm',
@@ -26,9 +30,15 @@ class ControllerExtensionModuleNoticeconfirm extends Controller {
         $data['column_left'] = $this->load->controller('common/column_left');
         $data['footer']      = $this->load->controller('common/footer');
 
-        // OC 3.x uses .twig, OC 2.x uses .tpl — try twig first
-        $tpl = 'extension/module/noticeconfirm';
-        $this->response->setOutput($this->load->view($tpl, $data));
+        $this->response->setOutput($this->load->view('extension/module/noticeconfirm', $data));
+    }
+
+    // AJAX endpoint: returns notice.ro templates as JSON
+    public function templates() {
+        $this->load->library('noticeconfirm');
+        $nc = new NoticeConfirm($this->registry);
+        $this->response->addHeader('Content-Type: application/json');
+        $this->response->setOutput(json_encode($nc->getTemplates()));
     }
 
     public function install() {
@@ -48,13 +58,14 @@ class ControllerExtensionModuleNoticeconfirm extends Controller {
         $token_param = $this->tokenParam();
 
         $data['breadcrumbs'] = [
-            ['text' => $this->language->get('text_home'), 'href' => $this->url->link('common/dashboard', $token_param, true)],
-            ['text' => $this->language->get('text_extension'), 'href' => $this->url->link('extension/extension', $token_param . '&type=module', true)],
-            ['text' => $this->language->get('heading_title'), 'href' => $this->url->link('extension/module/noticeconfirm', $token_param, true)],
+            ['text' => $this->language->get('text_home'),      'href' => $this->url->link('common/dashboard',          $token_param, true)],
+            ['text' => $this->language->get('text_extension'), 'href' => $this->url->link('extension/extension',        $token_param . '&type=module', true)],
+            ['text' => $this->language->get('heading_title'),  'href' => $this->url->link('extension/module/noticeconfirm', $token_param, true)],
         ];
 
-        $data['action'] = $this->url->link('extension/module/noticeconfirm', $token_param, true);
-        $data['cancel'] = $this->url->link('extension/extension', $token_param . '&type=module', true);
+        $data['action']          = $this->url->link('extension/module/noticeconfirm', $token_param, true);
+        $data['action_templates'] = $this->url->link('extension/module/noticeconfirm/templates', $token_param, true);
+        $data['cancel']          = $this->url->link('extension/extension', $token_param . '&type=module', true);
 
         $data['error_warning'] = isset($this->error['warning']) ? $this->error['warning'] : '';
         $data['success']       = isset($this->session->data['success']) ? $this->session->data['success'] : '';
@@ -78,6 +89,10 @@ class ControllerExtensionModuleNoticeconfirm extends Controller {
             'status_notify'    => 22,
             'status_refused'   => 19,
             'callback_url'     => '',
+            'tpl_call'         => '',
+            'tpl_wapp'         => '',
+            'tpl_sms'          => '',
+            'tpl_recall'       => '',
         ];
 
         foreach ($fields as $key => $default) {
@@ -91,12 +106,15 @@ class ControllerExtensionModuleNoticeconfirm extends Controller {
             }
         }
 
+        if (is_array($data['noticeconfirm_status_pending'])) {
+            $data['noticeconfirm_status_pending'] = implode(',', $data['noticeconfirm_status_pending']);
+        }
+
         $data['order_statuses'] = $order_statuses;
 
-        // Auto-fill callback URL
         if (empty($data['noticeconfirm_callback_url'])) {
-            $store_url = rtrim($this->config->get('config_url'), '/');
-            $data['noticeconfirm_callback_url'] = $store_url . '/index.php?route=api/audio/callback';
+            $store_url = rtrim((string)$this->config->get('config_url'), '/');
+            $data['noticeconfirm_callback_url'] = $store_url . '/index.php?route=extension/module/noticeconfirm_callback/callback';
         }
 
         return $data;
