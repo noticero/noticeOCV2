@@ -264,9 +264,20 @@
     this.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Loading...';
     var self = this;
 
-    fetch('{{ action_templates }}', { credentials: 'same-origin' })
-      .then(function(r) { return r.json(); })
+    fetch('{{ action_templates | raw }}', { credentials: 'same-origin' })
+      .then(function(r) {
+        if (!r.ok) {
+          return r.text().then(function(t) { throw new Error('HTTP ' + r.status + ': ' + t.substring(0, 200)); });
+        }
+        return r.text().then(function(t) {
+          try { return JSON.parse(t); }
+          catch(e) { throw new Error('Bad JSON: ' + t.substring(0, 200)); }
+        });
+      })
       .then(function(data) {
+        if (!Array.isArray(data)) {
+          throw new Error('Unexpected response: ' + JSON.stringify(data).substring(0, 200));
+        }
         templates = data;
         var sel = document.getElementById('nc-template-pick');
         sel.innerHTML = '<option value="">— select a notice.ro template —</option>';
@@ -279,8 +290,10 @@
         document.getElementById('template-selector').style.display = 'block';
         self.innerHTML = '<i class="fa fa-check"></i> ' + data.length + ' templates loaded';
       })
-      .catch(function() {
+      .catch(function(err) {
         self.innerHTML = '<i class="fa fa-times text-danger"></i> Failed to load';
+        console.error('noticeconfirm templates error:', err.message);
+        alert('Could not load templates: ' + err.message);
       });
   });
 
