@@ -71,7 +71,7 @@ class ControllerExtensionModuleNoticeconfirm extends Controller {
         ];
 
         $data['action']          = $this->url->link('extension/module/noticeconfirm', $token_param, true);
-        $data['action_templates'] = $this->url->link('extension/module/noticeconfirm/templates', $token_param, true);
+        $data['action_templates'] = html_entity_decode($this->url->link('extension/module/noticeconfirm/templates', $token_param, true));
         $data['cancel']          = $this->url->link('extension/extension', $token_param . '&type=module', true);
 
         $data['error_warning'] = isset($this->error['warning']) ? $this->error['warning'] : '';
