@@ -35,7 +35,8 @@ class ControllerExtensionModuleNoticeconfirm extends Controller {
 
     // AJAX endpoint: returns notice.ro templates as JSON
     public function templates() {
-        $this->load->library('noticeconfirm');
+        ob_clean();
+        require_once(DIR_SYSTEM . 'library/noticeconfirm.php');
         $nc = new NoticeConfirm($this->registry);
         $this->response->addHeader('Content-Type: application/json');
         $this->response->setOutput(json_encode($nc->getTemplates()));

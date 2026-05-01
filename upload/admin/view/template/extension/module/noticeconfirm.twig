@@ -291,9 +291,8 @@
         self.innerHTML = '<i class="fa fa-check"></i> ' + data.length + ' templates loaded';
       })
       .catch(function(err) {
-        self.innerHTML = '<i class="fa fa-times text-danger"></i> Failed to load';
+        self.innerHTML = '<i class="fa fa-times text-danger"></i> Failed: ' + err.message.substring(0, 80);
         console.error('noticeconfirm templates error:', err.message);
-        alert('Could not load templates: ' + err.message);
       });
   });
 
